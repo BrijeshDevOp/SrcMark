@@ -1,43 +1,45 @@
 # SrcMark
 
-Minimal VS Code extension (JavaScript) that prepends a top-line comment with the path relative to the workspace root (or filename in single-file mode).
+A minimal VS Code extension that automatically adds a top-line comment to each file, showing its path relative to the workspace root (or just the filename in single-file mode).
 
-## Quick start
+## Features
 
-1. Copy the files into a folder `srcmark`.
-2. Run `npm init -y` inside the folder and install `micromatch` if you want the glob support: `npm install micromatch`.
-3. Open folder in VS Code and press `F5` to start the Extension Development Host.
+- **Automatic Comment**: Prepends a comment with the file path at the top of each file.
+- **Auto-Detects Comment Syntax**: Uses the correct comment style for 60+ languages (e.g., `//` for JavaScript, `#` for Python, `--` for SQL, `<!-- -->` for HTML).
+- **No Duplicates**: Updates or skips the comment if it’s already present.
+- **Glob Filtering**: Only process files matching your chosen pattern.
+- **Easy Toggle**: Enable/disable with a command or setting.
+- **Undoable**: All edits can be undone.
+
+## Usage
+
+1. Install dependencies:  
+   ```sh
+   npm install
+   ```
+2. Open the folder in VS Code.
+3. Press `F5` to launch the extension in a new VS Code window.
+4. Edit or open files to see the path comment added automatically.
 
 ## Commands
 
-- `SrcMark: Toggle On/Off` — toggles automatic insertion.
-- `SrcMark: Run Now (prepend to active editor)` — immediately process the active editor.
+- `SrcMark: Toggle On/Off` — Enable or disable automatic comments.
+- `SrcMark: Run Now (prepend to active editor)` — Add/update the comment in the current file.
 
-## Settings (in `settings.json`)
+## Settings
 
-- `srcmark.enabled` (boolean): enable/disable at startup. Default `true`.
-- `srcmark.autoDetectComment` (boolean): automatically use appropriate comment syntax for each file type (e.g., `#` for Python, `//` for JavaScript, `--` for SQL). Default `true`.
-- `srcmark.commentPrefix` (string): comment prefix when auto-detect is disabled or as fallback. Default `//`.
-- `srcmark.fileGlob` (string): glob of files to process. Default `**/*`.
-- `srcmark.skipIfPresent` (boolean): if true, won't add duplicate identical top-line comment. Default `true`.
+You can change these in your VS Code `settings.json`:
 
-## Supported Languages
-
-The extension automatically detects and uses the correct comment syntax for 60+ languages including:
-- **C-style (`//`)**: JavaScript, TypeScript, Java, C, C++, C#, Go, Rust, PHP, Swift, Kotlin, Dart, Scala
-- **Hash (`#`)**: Python, Ruby, Bash, Shell, PowerShell, YAML, Makefile, Dockerfile, R
-- **SQL (`--`)**: SQL, Lua, Haskell
-- **Lisp (`;`)**: Clojure, Scheme, Lisp, Racket
-- **Markup (`<!-- -->`)**: HTML, XML, Markdown, SVG
-- **CSS (`/* */`)**: CSS
-- **Other**: Vim (`"`), LaTeX (`%`), Erlang (`%`), and more
-
-Files without comment support (like JSON) are automatically skipped.
+- `srcmark.enabled` (default: `true`): Enable/disable the extension.
+- `srcmark.autoDetectComment` (default: `true`): Use the right comment style for each language.
+- `srcmark.commentPrefix`: Set a fixed comment prefix if auto-detect is off.
+- `srcmark.fileGlob` (default: `**/*`): Only process files matching this pattern.
+- `srcmark.skipIfPresent` (default: `true`): Don’t add a comment if it’s already there.
 
 ## Notes
 
-- The extension edits are undoable. It will not save the file automatically after inserting the comment.
-- By default the first workspace folder is used as the root for relative paths.
-- You can disable auto-detection and use a fixed comment prefix for all files by setting `srcmark.autoDetectComment` to `false`.
-- If a file path comment already exists, it will be **updated** (not duplicated) when the file context changes (e.g., opening as workspace file vs individual file).
-- Built-in race condition protection prevents duplicate comments when multiple events fire simultaneously.
+- Files without comment support (like JSON) are skipped.
+- The extension does not auto-save files after editing.
+- Works with most popular programming and markup languages.
+
+---
