@@ -1,4 +1,4 @@
-# SrcMark ![Logo](images/srcmark-banner.png)
+# SrcMark ![Logo](banner.png)
 
 **SrcMark** is a lightweight VS Code extension that automatically adds a **file location comment** at the top of any **opened or newly created file**, showing its full path within the project — or just the filename when a single file is open.
 

@@ -1,7 +1,7 @@
 {
   "name": "srcmark",
   "displayName": "SrcMark",
-  "publisher": "your-publisher-name",
+  "publisher": "BrijeshPoojary",
   "version": "0.0.3",
   "engines": {
     "vscode": "^1.80.0"
@@ -55,7 +55,7 @@
       }
     }
   },
-  "description": "Minimal VS Code extension (JavaScript) that prepends a top-line comment with the path relative to the workspace root (or filename in single-file mode).",
+  "description": "Minimal VS Code extension that prepends a top-line comment with the path relative to the workspace root (or filename in single-file mode).",
   "directories": {
     "test": "test"
   },
