@@ -148,17 +148,17 @@ function computeLabel(document) {
     // Use the first workspace folder as the root (as requested)
     const root = wf[0].uri.fsPath;
     const workspaceName = path.basename(root);
-    
+
     try {
       let rel = path.relative(root, docUri.fsPath);
       // Normalize to forward slashes for display
       rel = rel.split(path.sep).join("/");
-      
+
       // If path is empty or starts with '..' (file is outside workspace), use basename only
       if (!rel || rel === "" || rel.startsWith("..")) {
         return path.basename(docUri.fsPath);
       }
-      
+
       // Include workspace folder name in the path
       return `${workspaceName}/${rel}`;
     } catch {
@@ -177,31 +177,34 @@ function computeLabel(document) {
  */
 function isLikelySrcMarkComment(line, commentStyle) {
   if (!commentStyle.prefix) return false;
-  
+
   const trimmedLine = line.trim();
-  
+
   // Check if line starts with the comment prefix
   if (!trimmedLine.startsWith(commentStyle.prefix.trim())) return false;
-  
+
   // Extract the content after the comment prefix
   let content = trimmedLine.substring(commentStyle.prefix.trim().length).trim();
-  
+
   // If there's a suffix (like --> for HTML), remove it
   if (commentStyle.suffix) {
     const suffixTrimmed = commentStyle.suffix.trim();
     if (content.endsWith(suffixTrimmed)) {
-      content = content.substring(0, content.length - suffixTrimmed.length).trim();
+      content = content
+        .substring(0, content.length - suffixTrimmed.length)
+        .trim();
     }
   }
-  
+
   // Check if content looks like a file path:
   // - Contains file extension (.js, .py, etc.) OR
   // - Contains path separators (/ or \) OR
   // - Looks like a filename without spaces
   const hasExtension = /\.\w{1,8}$/.test(content);
-  const hasPathSeparator = content.includes('/') || content.includes('\\');
-  const looksLikeFilename = /^[\w\-\.\/\\]+$/.test(content) && content.length > 0;
-  
+  const hasPathSeparator = content.includes("/") || content.includes("\\");
+  const looksLikeFilename =
+    /^[\w\-\.\/\\]+$/.test(content) && content.length > 0;
+
   return hasExtension || hasPathSeparator || looksLikeFilename;
 }
 
@@ -238,7 +241,7 @@ async function ensureTopComment(document, context) {
 
   // Read first line
   const firstLine = document.lineAt(0).text;
-  
+
   // Check if the exact comment is already present
   if (skipIfPresent && firstLine.trim() === commentLine.trim()) {
     // already present — nothing to do
@@ -246,7 +249,7 @@ async function ensureTopComment(document, context) {
   }
 
   const edit = new vscode.WorkspaceEdit();
-  
+
   // Check if first line is an existing srcmark comment that needs updating
   if (isLikelySrcMarkComment(firstLine, commentStyle)) {
     // Replace the existing comment instead of inserting a new one
@@ -278,22 +281,14 @@ function activate(context) {
   // Track files currently being processed to prevent race conditions
   const processingFiles = new Set();
 
-  /**
-   * Wrapper to prevent concurrent processing of the same file
-   */
   async function safeEnsureTopComment(document) {
     const fileKey = document.uri.toString();
-    
-    // Skip if already processing this file (prevents race condition)
-    if (processingFiles.has(fileKey)) {
-      return;
-    }
-    
+    if (processingFiles.has(fileKey)) return;
     try {
       processingFiles.add(fileKey);
       await ensureTopComment(document, context);
     } finally {
-      // Small delay before allowing re-processing to ensure edit is applied
+      // small debounce so subsequent rapid events don't requeue immediately
       setTimeout(() => processingFiles.delete(fileKey), 100);
     }
   }
@@ -335,40 +330,79 @@ function activate(context) {
   });
   context.subscriptions.push(runNow);
 
-  // When an editor becomes active
+  // --- IMPORTANT CHANGE: only process files the user actually views ---
+  // When an editor becomes active (user switches to / opens a tab they see)
   context.subscriptions.push(
     vscode.window.onDidChangeActiveTextEditor(async (editor) => {
       if (!editor) return;
-      await safeEnsureTopComment(editor.document);
-    })
-  );
-
-  // When a document is opened
-  context.subscriptions.push(
-    vscode.workspace.onDidOpenTextDocument(async (document) => {
       try {
-        await safeEnsureTopComment(document);
+        // Only process if config allows this mode (default true)
+        const config = vscode.workspace.getConfiguration("srcmark");
+        const processOnlyOnView = config.get("processOnlyOnView", true);
+        if (!processOnlyOnView) {
+          // If user disabled "processOnlyOnView", preserve old behavior by also processing
+          await safeEnsureTopComment(editor.document);
+          return;
+        }
+        // Normal desired behavior: process only when the file becomes active / viewed
+        await safeEnsureTopComment(editor.document);
       } catch (e) {
-        output.appendLine("Error in onDidOpenTextDocument: " + String(e));
+        output.appendLine("Error in onDidChangeActiveTextEditor: " + String(e));
       }
     })
   );
 
-  // When a document is saved (user might create new file and save)
+  // Handle files created via API / VS Code new file UI
+  if (vscode.workspace.onDidCreateFiles) {
+    context.subscriptions.push(
+      vscode.workspace.onDidCreateFiles(async (event) => {
+        try {
+          // event.files is an array of URIs
+          for (const uri of event.files) {
+            // try to find if the file is currently opened in an editor
+            const editors = vscode.window.visibleTextEditors;
+            const editorForUri = editors.find(
+              (ed) =>
+                ed.document && ed.document.uri.toString() === uri.toString()
+            );
+            // If it's visible, process; otherwise, we skip (user didn't open it yet)
+            if (editorForUri) {
+              await safeEnsureTopComment(editorForUri.document);
+            }
+          }
+        } catch (e) {
+          output.appendLine("Error in onDidCreateFiles: " + String(e));
+        }
+      })
+    );
+  }
+
+  // Keep save-based processing (in case user creates file and saves without focusing)
   context.subscriptions.push(
     vscode.workspace.onDidSaveTextDocument(async (document) => {
       try {
-        await safeEnsureTopComment(document);
+        // Only process saves if the document is visible (to avoid background workspace saves)
+        const isVisible = vscode.window.visibleTextEditors.some(
+          (ed) =>
+            ed.document &&
+            ed.document.uri.toString() === document.uri.toString()
+        );
+        if (isVisible) {
+          await safeEnsureTopComment(document);
+        }
       } catch (e) {
         output.appendLine("Error in onDidSaveTextDocument: " + String(e));
       }
     })
   );
 
-  // On activation, run for the currently active editor
+  // IMPORTANT: do NOT run a bulk pass on activation. Only process the currently active editor (if any)
+  // if the user wants that behavior they can run "srcmark.runNow".
   if (vscode.window.activeTextEditor) {
-    safeEnsureTopComment(vscode.window.activeTextEditor.document).catch(
-      (e) => output.appendLine(String(e))
+    // Process just the currently visible active editor (not every doc opened in background)
+    // This preserves existing behavior for the active tab on activation while avoiding bulk processing.
+    safeEnsureTopComment(vscode.window.activeTextEditor.document).catch((e) =>
+      output.appendLine(String(e))
     );
   }
 }
